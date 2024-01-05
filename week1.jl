@@ -22,7 +22,7 @@ be 3 water and 11 land. Construct the posterior distribution.
 
 The Binomial-beta conjugate pair is very well known. 
 
-$\Pr(p|W, L) = \frac{p^W(1-p)^L}{\int p^W(1-p)^L} = \text{Beta}(W+1, L+1)$
+$P(p|W, L) = \frac{p^W(1-p)^L}{\int p^W(1-p)^L} = \text{Beta}(W+1, L+1)$
 
 We show the probability density function dashed and the empirical (from sampling) as continuous.
 """
@@ -31,17 +31,20 @@ We show the probability density function dashed and the empirical (from sampling
 begin
 	W = 3
 	L = 11
+	prior = Beta(1, 1)
 	posterior = Beta(W+1, L+1)
 end
 
 # ╔═╡ 8973c1f6-bb9d-4306-96da-5ad1f8d2e17f
 begin
+	p_grid = range(0, 1, 500)
+	prior_p = rand(prior, 200)
+	density(prior_p, label = "Sampled prior distribution")
 	post_p = rand(posterior, 200)
-	density(post_p, label = "Sampled posterior distribution")
-	p_grid = range(0, 1, 100)
-	dens =  pdf(posterior, p_grid)
+	density!(post_p, label = "Sampled posterior distribution")
+	plot!(p_grid, pdf(prior, p_grid), label = "Exact prior distribution")
 	plot!(
-		p_grid, dens, 
+		p_grid, pdf(posterior, p_grid), 
 		linestyle=:dash,
 		xlabel = "Proportion of water",
     	ylabel = "Density",
@@ -69,6 +72,40 @@ begin
 		xlabel = "#Water observed",
     	ylabel = "Counts",
     	label = nothing,
+	)
+end
+
+# ╔═╡ 6f48198b-a28a-4dc3-8202-aa4fc790e23c
+md"""
+## Question 3
+
+OPTIONAL. This problem is an optional challenge for people who are
+taking the course for a second or third time. Suppose you observe W = 7
+water points, but you forgot to write down how many times the globe was
+tossed, so you don’t know the number of land points L. Assume that p = 0.7
+and compute the posterior distribution of the number of tosses N. Hint: Use
+the binomial distribution.
+
+I guess assigning an uniform prior to $N$ makes sense only if the consider a reasonable grid.  
+
+$\Pr(N|W, p) \propto p^W(1-p)^{N-W}$
+
+"""
+
+# ╔═╡ 14069a80-960e-4db0-a180-a90243a5b901
+begin
+	p = 0.7
+	W2 = 7
+	N = range(0, 30)
+	prior_N = ones(31)
+	likelihood = N -> N >= W2 ? p^W2*(1-p)^(N-W2) : 0
+	bar(N, prior_N, label = "Prior distribution", colour = nothing)
+	bar!(
+		N, likelihood.(N).*prior_N, 
+		linestyle=:dash,
+		xlabel = "N",
+    	ylabel = "Density",
+    	label = "Posterior distribution",
 	)
 end
 
@@ -1463,5 +1500,7 @@ version = "1.4.1+1"
 # ╠═7eec76b2-3ec5-4aa4-b647-c64c276cfaca
 # ╠═a567d429-e187-4bdc-9bcb-312e7d9c9c73
 # ╠═228e7add-ab98-4f1d-aa60-c9482132e35b
+# ╠═6f48198b-a28a-4dc3-8202-aa4fc790e23c
+# ╠═14069a80-960e-4db0-a180-a90243a5b901
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
