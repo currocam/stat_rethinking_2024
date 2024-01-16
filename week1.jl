@@ -15,6 +15,8 @@ using StatsPlots
 
 # ╔═╡ 4362563a-4066-468a-bf36-8be98a9a7719
 md"""
+Author: Curro Campuzano Jiménez (@currocam)
+
 # Week 1
 ## Question 1
 Suppose the globe tossing data (Lecture 2, Chapter 2) had turned out to
@@ -42,14 +44,15 @@ begin
 	density(prior_p, label = "Sampled prior distribution")
 	post_p = rand(posterior, 200)
 	density!(post_p, label = "Sampled posterior distribution")
-	plot!(p_grid, pdf(prior, p_grid), label = "Exact prior distribution")
+	plot!(p_grid, pdf(prior, p_grid), label = "Analytical prior distribution")
 	plot!(
 		p_grid, pdf(posterior, p_grid), 
 		linestyle=:dash,
 		xlabel = "Proportion of water",
     	ylabel = "Density",
-    	label = "Exact posterior distribution",
+    	label = "Analytical posterior distribution",
 	)
+	xlims!((0, 1))
 end
 
 # ╔═╡ 7eec76b2-3ec5-4aa4-b647-c64c276cfaca
@@ -73,6 +76,7 @@ begin
     	ylabel = "Counts",
     	label = nothing,
 	)
+	xlims!((0, 5))
 end
 
 # ╔═╡ 6f48198b-a28a-4dc3-8202-aa4fc790e23c
@@ -98,15 +102,20 @@ begin
 	W2 = 7
 	N = range(0, 30)
 	prior_N = ones(31)
-	likelihood = N -> N >= W2 ? p^W2*(1-p)^(N-W2) : 0
-	bar(N, prior_N, label = "Prior distribution", colour = nothing)
+	prior_N ./= sum(prior_N)
+	likelihood = N -> N >= W2 ? binomial(N, W2)*p^W2*(1-p)^(N-W2) : 0
+	post_N = likelihood.(N).*prior_N
+	post_N ./= sum(post_N)
+	bar(N, prior_N./sum(prior_N), label = "Prior", colour = nothing)
 	bar!(
-		N, likelihood.(N).*prior_N, 
+		N,post_N , 
 		linestyle=:dash,
 		xlabel = "N",
-    	ylabel = "Density",
-    	label = "Posterior distribution",
+    	ylabel = "Probability",
+    	label = "Posterior",
+		minorgrid = true
 	)
+	xlims!((0, 30))
 end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
