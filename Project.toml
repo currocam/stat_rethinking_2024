@@ -1,0 +1,6 @@
+[deps]
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+Dagitty = "d56128e0-8113-48cd-82a0-fc808dc30d4b"
+Lints = "969b4477-8239-4824-a7ce-fb2a72cbc115"
+StanSample = "c1514b29-d3a0-5178-b312-660c88baa699"
+StatsPlots = "f3b207a7-027a-5e70-b257-86293d7955fd"
