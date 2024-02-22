@@ -1,6 +1,6 @@
 .PHONY: run
 run:
-	julia -e 'import Pluto; Pluto.run()'
+	julia -p auto -e 'import Pluto; Pluto.run()'
 
 .PHONY: deps
 deps:
