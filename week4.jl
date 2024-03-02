@@ -5,7 +5,8 @@ using Markdown
 using InteractiveUtils
 
 # ╔═╡ ebf977b2-9891-4682-a552-0a1f94a00d37
-using Pkg; Pkg.activate(".")
+using Pkg;
+Pkg.activate(".");
 
 # ╔═╡ 5d30627f-54a8-4c4f-a0d0-a90f4f73f28a
 using CSV, DataFrames, StanSample, StatsBase, StatsPlots, Distributions, RCall, Random
@@ -37,24 +38,29 @@ First, we have to simulate the data. Here is the design (from the book).
 
 # ╔═╡ b0ee36ed-a97d-4a4d-87de-c808cfd41244
 function happiness_simulation()
-	N_years=1000; max_age=65; N_births=20; aom=18
-	ages = Int[]; happiness = Float64[]; marital_status = Bool[];
-	for year in 1:N_years
-		ages .+=1
-		prepend!(ages, ones(N_births))
-		prepend!(happiness, range(-2, 2, N_births))
-		prepend!(marital_status, zeros(N_births))
-		retired = findall(a -> a >max_age, ages)
-		deleteat!(ages, retired)
-		deleteat!(happiness, retired)
-		deleteat!(marital_status, retired)
-		for ((i, status), age) in zip(enumerate(marital_status), ages)
-			if !status && age > aom
-				marital_status[i] = happiness[i] -4 |> BernoulliLogit |> rand
-			end
-		end
-	end
-	DataFrame([:age => ages, :married => marital_status, :happiness => happiness])
+  N_years = 1000
+  max_age = 65
+  N_births = 20
+  aom = 18
+  ages = Int[]
+  happiness = Float64[]
+  marital_status = Bool[]
+  for year in 1:N_years
+    ages .+= 1
+    prepend!(ages, ones(N_births))
+    prepend!(happiness, range(-2, 2, N_births))
+    prepend!(marital_status, zeros(N_births))
+    retired = findall(a -> a > max_age, ages)
+    deleteat!(ages, retired)
+    deleteat!(happiness, retired)
+    deleteat!(marital_status, retired)
+    for ((i, status), age) in zip(enumerate(marital_status), ages)
+      if !status && age > aom
+        marital_status[i] = happiness[i] - 4 |> BernoulliLogit |> rand
+      end
+    end
+  end
+  DataFrame([:age => ages, :married => marital_status, :happiness => happiness])
 end
 
 
@@ -69,39 +75,39 @@ Now, we have to fit both models and extract the pointwise log-likelihood.
 
 # ╔═╡ 0e1eeaf9-afd6-4fc6-baf2-93beca18c4e4
 function m6_9(data)
-	stan_model = "
-data {
-	int <lower=1> N;
-	vector[N] happiness;
-	vector[N] A;
-	array[N] int married;
-}
-parameters {
-  vector[2] alphas;
-  real beta;
-  real sigma;
-}
-model {
-	vector[N] mu;
-	sigma ~ exponential(1);
-	alphas ~ normal(0, 1);
-	beta ~ normal(0, 2);  
-	for (i in 1:N) 
-		mu[i] = alphas[married[i]] + beta * A[i];
-	happiness ~ normal(mu, sigma);
-}
-generated quantities {
-  vector[N] log_lik;
-  for (n in 1:N) 
-	log_lik[n] = normal_lpdf(happiness[n] | alphas[married[n]] + A[n] * beta, sigma);
-}
-";
-	model = SampleModel("m6.9", stan_model)
+  stan_model = "
+ data {
+ 	int <lower=1> N;
+ 	vector[N] happiness;
+ 	vector[N] A;
+ 	array[N] int married;
+ }
+ parameters {
+   vector[2] alphas;
+   real beta;
+   real sigma;
+ }
+ model {
+ 	vector[N] mu;
+ 	sigma ~ exponential(1);
+ 	alphas ~ normal(0, 1);
+ 	beta ~ normal(0, 2);  
+ 	for (i in 1:N) 
+ 		mu[i] = alphas[married[i]] + beta * A[i];
+ 	happiness ~ normal(mu, sigma);
+ }
+ generated quantities {
+   vector[N] log_lik;
+   for (n in 1:N) 
+ 	log_lik[n] = normal_lpdf(happiness[n] | alphas[married[n]] + A[n] * beta, sigma);
+ }
+ "
+  model = SampleModel("m6.9", stan_model)
   data_dict = Dict(
     "N" => size(data, 1),
     "happiness" => data.happiness,
-    "A" => (data.age .- 18) ./ ( 65 - 18 ),
-	"married" => Int.(data.married) .+ 1
+    "A" => (data.age .- 18) ./ (65 - 18),
+    "married" => Int.(data.married) .+ 1
   )
   rc = stan_sample(model; data=data_dict)
   success(rc) ? model : nothing
@@ -110,8 +116,8 @@ end
 # ╔═╡ fd068386-c913-4c27-9422-10b62d190f55
 # ╠═╡ show_logs = false
 begin
-	post1 = data |> m6_9 |> read_samples
-	log_lik_1 = reduce(hcat, [post1[i] for i in 5:lastindex(post1)])
+  post1 = data |> m6_9 |> read_samples
+  log_lik_1 = reduce(hcat, [post1[i] for i in 5:lastindex(post1)])
 end
 
 # ╔═╡ 508a3c79-ddeb-4059-9ded-dc159724dad2
@@ -121,36 +127,36 @@ And now, the second model where we exclude the collider.
 
 # ╔═╡ a9cf4ae2-0597-4a52-8ff2-7872d3a90e7b
 function m6_10(data)
-	stan_model = "
-data {
-	int <lower=1> N;
-	vector[N] happiness;
-	vector[N] A;
-}
-parameters {
-  real alpha;
-  real beta;
-  real sigma;
-}
-model {
-  sigma ~ exponential(1);
-  beta ~ normal(0, 2);
-  alpha ~ normal(0, 1);
-  happiness ~ normal(alpha + beta*A, sigma);
-}
-	
-generated quantities {
-  vector[N] log_lik;
-  for (n in 1:N) {
-    log_lik[n] = normal_lpdf(happiness[n] | alpha + beta*A[n], sigma);
-  }
-}
-";
-	model = SampleModel("m6.10", stan_model)
+  stan_model = "
+ data {
+ 	int <lower=1> N;
+ 	vector[N] happiness;
+ 	vector[N] A;
+ }
+ parameters {
+   real alpha;
+   real beta;
+   real sigma;
+ }
+ model {
+   sigma ~ exponential(1);
+   beta ~ normal(0, 2);
+   alpha ~ normal(0, 1);
+   happiness ~ normal(alpha + beta*A, sigma);
+ }
+ 	
+ generated quantities {
+   vector[N] log_lik;
+   for (n in 1:N) {
+     log_lik[n] = normal_lpdf(happiness[n] | alpha + beta*A[n], sigma);
+   }
+ }
+ "
+  model = SampleModel("m6.10", stan_model)
   data_dict = Dict(
-    "N" => size(data, 1),	  
+    "N" => size(data, 1),
     "happiness" => data.happiness,
-    "A" => (data.age .- 18) ./ ( 65 - 18 ),
+    "A" => (data.age .- 18) ./ (65 - 18),
   )
   rc = stan_sample(model; data=data_dict)
   if success(rc)
@@ -162,8 +168,8 @@ end
 # ╔═╡ 0736aa8b-d00a-4d18-a0ba-1751b022039c
 # ╠═╡ show_logs = false
 begin
-	post2 = data |> m6_10 |> read_samples
-	log_lik_2 = reduce(hcat, [post2[i] for i in 4:lastindex(post2)])
+  post2 = data |> m6_10 |> read_samples
+  log_lik_2 = reduce(hcat, [post2[i] for i in 4:lastindex(post2)])
 end
 
 # ╔═╡ b85dd9ac-5f46-4149-a42a-774917b80a52
@@ -174,14 +180,14 @@ We compared both models using WAIC and PSIS (PSIS-LOO CV). We used in both cases
 # ╔═╡ 190ed2af-652b-47f9-a9d3-c12348303b14
 # ╠═╡ show_logs = false
 begin
-	@rput log_lik_1
-	@rput log_lik_2
-	R"""
-	library("loo")
-	waic1 <- waic(log_lik_1)
-	waic2 <- waic(log_lik_2)
-	loo_compare(waic1, waic2)
-	"""
+  @rput log_lik_1
+  @rput log_lik_2
+  R"""
+  library("loo")
+  waic1 <- waic(log_lik_1)
+  waic2 <- waic(log_lik_2)
+  loo_compare(waic1, waic2)
+  """
 end
 
 # ╔═╡ 8ce50eee-694c-4984-9068-d03b4a61ff49
@@ -205,109 +211,109 @@ Reconsider the urban fox analysis from last week’s homework. First, we refit t
 
 # ╔═╡ 11e04cb4-098a-4bc8-9267-2cb6d7faa97f
 begin
-	function Foxes()
-	  url = "https://raw.githubusercontent.com/rmcelreath/rethinking/master/data/foxes.csv"
-	  CSV.read(download(url), DataFrame)
-	end
-	foxes = Foxes()
-	function model3_foxes(data)
-		stan_model = "
-	data {
-	  int<lower=0> N;
-	  vector[N] avgfood;
-	  vector[N] groupsize;
-	  vector[N] weight;
-	}
-	parameters {
-	  real alpha;
-	  real beta_g;
-	  real beta_f;
-	  real sigma;
-	}
-	model {
-	  sigma ~ exponential(1);
-	  alpha ~ normal(0, 1);
-	  beta_g ~ normal(0, 1);
-	  beta_f ~ normal(0, 1);
-	  weight ~ normal(alpha + beta_f * avgfood + beta_g * groupsize, sigma);
-	}
-	generated quantities {
-	  vector[N] log_lik;
-	  for (n in 1:N) {
-	    log_lik[n] = normal_lpdf(weight[n] | alpha + beta_f * avgfood[n] + beta_g * groupsize[n], sigma);
-	  }
-	}
-	";
-		model = SampleModel("regression", stan_model)
-	  data_dict = Dict(
-	    "N" => size(data, 1),
-	    "weight" => standardize(ZScoreTransform, data.weight),
-	    "avgfood" => standardize(ZScoreTransform, data.avgfood),
-	    "groupsize" => standardize(ZScoreTransform, float(data.groupsize))
-	  )
-	  rc = stan_sample(model; data=data_dict)
-	  if success(rc)
-	    return model
-	  end
-	  nothing
-	end
-	function model2_foxes(data)
-		stan_model = "
-	data {
-	  int<lower=0> N;
-	  vector[N] avgfood;
-	  vector[N] weight;
-	}
-	parameters {
-	  real alpha;
-	  real beta;
-	  real sigma;
-	}
-	model {
-	  sigma ~ exponential(1);
-	  alpha ~ normal(0, 1);
-	  beta ~ normal(0, 1);
-	  weight ~ normal(alpha + beta * avgfood, sigma);
-	}
-	generated quantities {
-	  vector[N] log_lik;
-	  for (n in 1:N) {
-	    log_lik[n] = normal_lpdf(weight[n] | alpha + beta*avgfood[n], sigma);
-	  }
-	}
-	";
-		model = SampleModel("regression", stan_model)
-	  data_dict = Dict(
-	    "N" => size(data, 1),
-	    "weight" => standardize(ZScoreTransform, data.weight),
-	    "avgfood" => standardize(ZScoreTransform, data.avgfood)
-	  )
-	  rc = stan_sample(model; data=data_dict)
-	  if success(rc)
-	    return model
-	  end
-	  nothing
-	end
+  function Foxes()
+    url = "https://raw.githubusercontent.com/rmcelreath/rethinking/master/data/foxes.csv"
+    CSV.read(download(url), DataFrame)
+  end
+  foxes = Foxes()
+  function model3_foxes(data)
+    stan_model = "
+   data {
+     int<lower=0> N;
+     vector[N] avgfood;
+     vector[N] groupsize;
+     vector[N] weight;
+   }
+   parameters {
+     real alpha;
+     real beta_g;
+     real beta_f;
+     real sigma;
+   }
+   model {
+     sigma ~ exponential(1);
+     alpha ~ normal(0, 1);
+     beta_g ~ normal(0, 1);
+     beta_f ~ normal(0, 1);
+     weight ~ normal(alpha + beta_f * avgfood + beta_g * groupsize, sigma);
+   }
+   generated quantities {
+     vector[N] log_lik;
+     for (n in 1:N) {
+       log_lik[n] = normal_lpdf(weight[n] | alpha + beta_f * avgfood[n] + beta_g * groupsize[n], sigma);
+     }
+   }
+   "
+    model = SampleModel("regression", stan_model)
+    data_dict = Dict(
+      "N" => size(data, 1),
+      "weight" => standardize(ZScoreTransform, data.weight),
+      "avgfood" => standardize(ZScoreTransform, data.avgfood),
+      "groupsize" => standardize(ZScoreTransform, float(data.groupsize))
+    )
+    rc = stan_sample(model; data=data_dict)
+    if success(rc)
+      return model
+    end
+    nothing
+  end
+  function model2_foxes(data)
+    stan_model = "
+   data {
+     int<lower=0> N;
+     vector[N] avgfood;
+     vector[N] weight;
+   }
+   parameters {
+     real alpha;
+     real beta;
+     real sigma;
+   }
+   model {
+     sigma ~ exponential(1);
+     alpha ~ normal(0, 1);
+     beta ~ normal(0, 1);
+     weight ~ normal(alpha + beta * avgfood, sigma);
+   }
+   generated quantities {
+     vector[N] log_lik;
+     for (n in 1:N) {
+       log_lik[n] = normal_lpdf(weight[n] | alpha + beta*avgfood[n], sigma);
+     }
+   }
+   "
+    model = SampleModel("regression", stan_model)
+    data_dict = Dict(
+      "N" => size(data, 1),
+      "weight" => standardize(ZScoreTransform, data.weight),
+      "avgfood" => standardize(ZScoreTransform, data.avgfood)
+    )
+    rc = stan_sample(model; data=data_dict)
+    if success(rc)
+      return model
+    end
+    nothing
+  end
 end
 
 # ╔═╡ 3fb4c7f7-663b-4644-b87e-f35f95a92dcb
 # ╠═╡ show_logs = false
 begin
-	post2_foxes = foxes |> model2_foxes |> read_samples
-	log_lik_foxes_2 = reduce(hcat, [post2_foxes[i] for i in 4:lastindex(post2_foxes)])
-	post3_foxes = foxes |> model3_foxes |> read_samples
-	log_lik_foxes_3 = reduce(hcat, [post3_foxes[i] for i in 5:lastindex(post3_foxes)])
+  post2_foxes = foxes |> model2_foxes |> read_samples
+  log_lik_foxes_2 = reduce(hcat, [post2_foxes[i] for i in 4:lastindex(post2_foxes)])
+  post3_foxes = foxes |> model3_foxes |> read_samples
+  log_lik_foxes_3 = reduce(hcat, [post3_foxes[i] for i in 5:lastindex(post3_foxes)])
 end
 
 # ╔═╡ 41515c1e-3afb-490d-bdfa-cb4c18c36ae9
 begin
-	@rput log_lik_foxes_2
-	@rput log_lik_foxes_3
-	R"""
-	waic2_foxes <- waic(log_lik_foxes_2)
-	waic3_foxes <- waic(log_lik_foxes_3)
-	loo_compare(waic2_foxes, waic3_foxes)
-	"""
+  @rput log_lik_foxes_2
+  @rput log_lik_foxes_3
+  R"""
+  waic2_foxes <- waic(log_lik_foxes_2)
+  waic3_foxes <- waic(log_lik_foxes_3)
+  loo_compare(waic2_foxes, waic3_foxes)
+  """
 end
 
 # ╔═╡ 0fdff5a9-bb06-44f0-939a-e09d7c387c2e
@@ -354,10 +360,10 @@ dinosaurs = Dinosaurs()
 
 # ╔═╡ 36dc2593-e1ff-4355-b341-b927aaac6f60
 begin
-	using CategoricalArrays
-	species = dinosaurs.species |> categorical  .|> levelcode
-	age = (dinosaurs.age .- minimum(dinosaurs.age)) ./ ( maximum(dinosaurs.age) - minimum(dinosaurs.age) )
-	mass = standardize(ZScoreTransform, dinosaurs.mass)
+  using CategoricalArrays
+  species = dinosaurs.species |> categorical .|> levelcode
+  age = (dinosaurs.age .- minimum(dinosaurs.age)) ./ (maximum(dinosaurs.age) - minimum(dinosaurs.age))
+  mass = standardize(ZScoreTransform, dinosaurs.mass)
 end
 
 # ╔═╡ 7b442fc6-cc5e-4cad-b7cb-f4d32984ad26
@@ -366,41 +372,41 @@ We are going to compare two models. The first model things that both rate and in
 """
 
 # ╔═╡ 2db858a4-b842-48a1-9bc6-7f76481a72bb
-	function simple_dinosaurs(species, age, mass, N, K)
-		stan_model = "
-	data {
-	  int<lower=0> N;
-	  int<lower=1> K;
-	  array[N] int species;
-	  vector[N] age;
-	  vector[N] mass;
-	}
-	parameters {
+function simple_dinosaurs(species, age, mass, N, K)
+  stan_model = "
+ data {
+   int<lower=0> N;
+   int<lower=1> K;
+   array[N] int species;
+   vector[N] age;
+   vector[N] mass;
+ }
+ parameters {
  	  vector[K] alpha;
-	  real beta;
-	  real sigma;
-	}
-	model {
-	  sigma ~ exponential(1);
-	  alpha ~ normal(0, 2);
-	  beta ~ normal(0, 2);
-	  for (i in 1:N) 
-		mass[i] ~ student_t(2, alpha[species[i]] + beta * age[i], sigma);
-	}
-	generated quantities {
-	  vector[N] log_lik;
-	  for (n in 1:N) {
-	    log_lik[n] = student_t_lpdf(mass[n] | 2, alpha[species[n]] + beta * age[n], sigma);
-	  }
-	}
-	";
-		model = SampleModel("simple_dino", stan_model)
-	  data_dict = Dict(
-		  "age" => age, "N" => N, "mass" => mass, "species" => species, "K" => K
-	  )
-	  rc = stan_sample(model; data=data_dict)
-	  success(rc) ? model : nothing
-	end
+   real beta;
+   real sigma;
+ }
+ model {
+   sigma ~ exponential(1);
+   alpha ~ normal(0, 2);
+   beta ~ normal(0, 2);
+   for (i in 1:N) 
+ 	mass[i] ~ student_t(2, alpha[species[i]] + beta * age[i], sigma);
+ }
+ generated quantities {
+   vector[N] log_lik;
+   for (n in 1:N) {
+     log_lik[n] = student_t_lpdf(mass[n] | 2, alpha[species[n]] + beta * age[n], sigma);
+   }
+ }
+ "
+  model = SampleModel("simple_dino", stan_model)
+  data_dict = Dict(
+    "age" => age, "N" => N, "mass" => mass, "species" => species, "K" => K
+  )
+  rc = stan_sample(model; data=data_dict)
+  success(rc) ? model : nothing
+end
 
 
 # ╔═╡ 4d851f22-6341-42a3-ae62-5defed03bec6
@@ -408,41 +414,41 @@ We are going to compare two models. The first model things that both rate and in
 simple_dino = simple_dinosaurs(species, age, mass, length(species), maximum(species));
 
 # ╔═╡ 07862ab0-4106-40a5-905a-67f2079c3f83
-	function complex_dinosaurs(species, age, mass, N, K)
-		stan_model = "
-	data {
-	  int<lower=0> N;
-	  int<lower=1> K;
-	  array[N] int species;
-	  vector[N] age;
-	  vector[N] mass;
-	}
-	parameters {
+function complex_dinosaurs(species, age, mass, N, K)
+  stan_model = "
+ data {
+   int<lower=0> N;
+   int<lower=1> K;
+   array[N] int species;
+   vector[N] age;
+   vector[N] mass;
+ }
+ parameters {
  	  vector[K] alpha;
-	  vector[K] beta;
-	  vector[K] sigma;
-	}
-	model {
-	  sigma ~ exponential(1);
-	  alpha ~ normal(0, 1);
-	  beta ~ normal(0, 1);
-	  for (i in 1:N) 
-		mass[i] ~ normal(alpha[species[i]] + beta[species[i]] * age[i], sigma[species[i]]);
-	}
-	generated quantities {
-	  vector[N] log_lik;
-	  for (n in 1:N) {
-	    log_lik[n] = normal_lpdf(mass[n] | alpha[species[n]] + beta[species[n]] * age[n], sigma[species[n]]);
-	  }
-	}
-	";
-		model = SampleModel("simple_dino", stan_model)
-	  data_dict = Dict(
-		  "age" => age, "N" => N, "mass" => mass, "species" => species, "K" => K
-	  )
-	  rc = stan_sample(model; data=data_dict)
-	  success(rc) ? model : nothing
-	end
+   vector[K] beta;
+   vector[K] sigma;
+ }
+ model {
+   sigma ~ exponential(1);
+   alpha ~ normal(0, 1);
+   beta ~ normal(0, 1);
+   for (i in 1:N) 
+ 	mass[i] ~ normal(alpha[species[i]] + beta[species[i]] * age[i], sigma[species[i]]);
+ }
+ generated quantities {
+   vector[N] log_lik;
+   for (n in 1:N) {
+     log_lik[n] = normal_lpdf(mass[n] | alpha[species[n]] + beta[species[n]] * age[n], sigma[species[n]]);
+   }
+ }
+ "
+  model = SampleModel("simple_dino", stan_model)
+  data_dict = Dict(
+    "age" => age, "N" => N, "mass" => mass, "species" => species, "K" => K
+  )
+  rc = stan_sample(model; data=data_dict)
+  success(rc) ? model : nothing
+end
 
 
 # ╔═╡ 29f2075f-cb67-4be8-9fc2-a6ca50afa746
@@ -461,24 +467,24 @@ I expect the simple model work better, as we don't have enough data. However, on
 
 # ╔═╡ ab922a5f-5817-4955-bdfe-cacdb52e7cd0
 begin
-	symbols = Symbol.("log_lik." .* string.(1:32))
-	post_simple_dino = simple_dino |> read_samples
-	log_lik_simple_dino = reduce(hcat, [post_simple_dino[sym] for sym in symbols])
-	post_complex_dino = complex_dino |> read_samples
-	log_lik_complex_dino = reduce(hcat, [post_complex_dino[sym] for sym in symbols])
+  symbols = Symbol.("log_lik." .* string.(1:32))
+  post_simple_dino = simple_dino |> read_samples
+  log_lik_simple_dino = reduce(hcat, [post_simple_dino[sym] for sym in symbols])
+  post_complex_dino = complex_dino |> read_samples
+  log_lik_complex_dino = reduce(hcat, [post_complex_dino[sym] for sym in symbols])
 end
 
 # ╔═╡ 7c5ae67e-a157-4da7-8ee0-638a970b97e1
 begin
-	@rput log_lik_simple_dino
-	@rput log_lik_complex_dino
-	R"""
-	r_eff_simple_dino <- relative_eff(exp(log_lik_simple_dino), chain_id = chain_id, cores = 4) 
-	r_eff_complex_dino <- relative_eff(exp(log_lik_complex_dino), chain_id = chain_id, cores = 4) 
-	loo_simple_dino <- loo(log_lik_simple_dino, r_eff = r_eff_simple_dino, cores = 4)
-	loo_complex_dino <- loo(log_lik_complex_dino, r_eff = r_eff_complex_dino, cores = 4)
-	loo_compare(loo_simple_dino, loo_complex_dino)
-	"""
+  @rput log_lik_simple_dino
+  @rput log_lik_complex_dino
+  R"""
+  r_eff_simple_dino <- relative_eff(exp(log_lik_simple_dino), chain_id = chain_id, cores = 4) 
+  r_eff_complex_dino <- relative_eff(exp(log_lik_complex_dino), chain_id = chain_id, cores = 4) 
+  loo_simple_dino <- loo(log_lik_simple_dino, r_eff = r_eff_simple_dino, cores = 4)
+  loo_complex_dino <- loo(log_lik_complex_dino, r_eff = r_eff_complex_dino, cores = 4)
+  loo_compare(loo_simple_dino, loo_complex_dino)
+  """
 end
 
 # ╔═╡ 1b6caefa-6346-4c2d-983c-bb7e53615a01
@@ -488,12 +494,12 @@ Let's visualize for a few dinosaurs. A simple line works works reasonably well, 
 
 # ╔═╡ 53b9b4ef-64f2-4c84-ac3c-f55693077db8
 begin
-	x = range(0, 1.0, 50)
-	y = [post_complex_dino[Symbol("alpha.3")][i] .+ x .* post_complex_dino[Symbol("beta.3")][i] for i in 1:50]
-	plot(x, y, legend = false)
-	scatter!(age[species .== 3], mass[species .== 3])
-	xaxis!("Normalized age")
-	yaxis!("Standarized mass")
+  x = range(0, 1.0, 50)
+  y = [post_complex_dino[Symbol("alpha.3")][i] .+ x .* post_complex_dino[Symbol("beta.3")][i] for i in 1:50]
+  plot(x, y, legend=false)
+  scatter!(age[species.==3], mass[species.==3])
+  xaxis!("Normalized age")
+  yaxis!("Standarized mass")
 end
 
 # ╔═╡ 1dec8902-9c0b-4646-946d-15f0bbbd32bb
@@ -503,11 +509,11 @@ When we don't have enough data, is nice to see that the "uncertainty" is capture
 
 # ╔═╡ c5593f0b-65ee-424f-961a-3a0c8fd4b4f5
 begin
-	y2 = [post_complex_dino[Symbol("alpha.5")][i] .+ x .* post_complex_dino[Symbol("beta.5")][i] for i in 1:50]
-	plot(x, y2, legend = false)
-	scatter!(age[species .== 5], mass[species .== 5])
-	xaxis!("Normalized age")
-	yaxis!("Standarized mass")
+  y2 = [post_complex_dino[Symbol("alpha.5")][i] .+ x .* post_complex_dino[Symbol("beta.5")][i] for i in 1:50]
+  plot(x, y2, legend=false)
+  scatter!(age[species.==5], mass[species.==5])
+  xaxis!("Normalized age")
+  yaxis!("Standarized mass")
 end
 
 # ╔═╡ Cell order:
